@@ -1,0 +1,5 @@
+*.txt
+blackbox.*
+blackbox
+*.o
+*.out
