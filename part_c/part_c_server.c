@@ -5,13 +5,18 @@
  */
 
 #include "part_c.h"
-#include "part_c_server.h"
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
+int sock, port, run;
+struct sockaddr_in server;
 
 char **
 run_binary_1_svc(arguments *argp, struct svc_req *rqstp)
 {
-	static char * result;
+    static char *result;
     int message2child[2], message2parent[2], error2parent[2];
     pid_t pid;
     char write_buffer[10000], read_buffer[10000];
@@ -36,18 +41,19 @@ run_binary_1_svc(arguments *argp, struct svc_req *rqstp)
     {
         int returnVal;
 
-        if(dup2(message2child[0], STDIN_FILENO) == -1 || dup2(message2parent[1], STDOUT_FILENO) == -1 || dup2(error2parent[1], STDERR_FILENO) == -1){
+        if (dup2(message2child[0], STDIN_FILENO) == -1 || dup2(message2parent[1], STDOUT_FILENO) == -1 || dup2(error2parent[1], STDERR_FILENO) == -1)
+        {
             fprintf(stderr, "There was an error binding pipes for std file descriptors.\n");
-        	exit(-1);
+            exit(-1);
         }
-        
+
         // Closing pipes since they are duplicated for standard file descriptors, we don't need them open
         close(message2parent[0]);
         close(message2parent[1]);
         close(message2child[0]);
         close(message2child[1]);
-		close(error2parent[0]);
-		close(error2parent[1]);
+        close(error2parent[0]);
+        close(error2parent[1]);
 
         execl(argp->executable_path, argp->executable_path, NULL);
     }
@@ -55,70 +61,77 @@ run_binary_1_svc(arguments *argp, struct svc_req *rqstp)
     // Parent process
     {
         ssize_t read_length, error_length;
-		char status[10100];
+        char status[10100], log_message[10100];
+        char server_address[64];
 
-        close(message2child[0]); // Parent won't read from parent to child pipe
+        close(message2child[0]);  // Parent won't read from parent to child pipe
         close(message2parent[1]); // Parent won't write to child to parent pipe
+
+        if (run == 0)
+        {
+            printf("give me host and port\n");
+            scanf("%s %d", server_address, &port);
+
+            printf("givens: %s %d\n", server_address, port);
+
+            //Create socket
+            sock = socket(AF_INET, SOCK_STREAM, 0);
+            if (sock == -1)
+            {
+                printf("[ERROR] Could not create socket");
+            }
+
+            if (inet_pton(AF_INET, server_address, &(server.sin_addr)) == -1)
+            {
+                perror("[ERROR] Given ip address couldn't be converted from string.");
+                exit(-1);
+            }
+            server.sin_family = AF_INET;
+            server.sin_port = htons(port);
+
+            run = 1;
+            if (connect(sock, (struct sockaddr *)&server, sizeof(server)) == -1)
+            {
+                perror("[ERROR] Socket connection failed.");
+                exit(-1);
+            }
+        }
+
+
 
         /* Taking 2 new arguements as input for child process */
         sprintf(write_buffer, "%d %d\n", argp->a, argp->b);
-		printf("%s", write_buffer);
         write(message2child[1], write_buffer, strlen(write_buffer));
 
         // Reading message sent from child process (Result of operation on child process)
-        read_length = read(message2parent[0], read_buffer, sizeof(read_buffer));
+        read_length = read(message2parent[0], read_buffer, sizeof(read_buffer) - 1);
 
-		if (read_length == 0){
-			error_length = read(error2parent[0], read_buffer, sizeof(read_buffer));
-			if (error_length != strlen(read_buffer)){
-				perror("[ERROR] Read error message string length is not matching.\n");
-				exit(-1);
-			}
-			sprintf(result, "FAIL:\n%s", read_buffer);
-		} else {
-			if (read_length != strlen(read_buffer)){
-				perror("[ERROR] Read string length is not matching.\n");
-				exit(-1);
-			}
-			sprintf(status, "SUCCESS:\n%s", read_buffer);
-		}
-		result = status;
+        if (read_length == 0)
+        {
+            error_length = read(error2parent[0], read_buffer, sizeof(read_buffer) - 1);
+            printf("Read length: %ld\n", error_length);
+            read_buffer[error_length] = '\0';
+            printf("Read buffer: %s\n", read_buffer);
+            sprintf(status, "FAIL:\n%s", read_buffer);
+            sprintf(log_message, "%d %d _", argp->a, argp->b);
+        }
+        else
+        {
+            printf("Read length: %ld\n", read_length);
+            read_buffer[read_length] = '\0';
+            printf("Read buffer: %s\n", read_buffer);
+            sprintf(status, "SUCCESS:\n%s", read_buffer);
+            sprintf(log_message, "%d %d %s", argp->a, argp->b, read_buffer);
+        }
+
+        if (send(sock, log_message, strlen(log_message), 0) == -1)
+        {
+            perror("[ERROR] Couldn't send message to the part_c_logger.out.");
+            exit(-1);
+        }
+        printf("%s", log_message);
+        result = status;
     }
 
-
-	return &result;
-}
-
-int main(int argc, char const *argv[])
-{
-    int sock = 0, valread, port;
-    struct sockaddr_in serv_addr;
-    char *hello = "Hello from client";
-    char buffer[1024] = {0};
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        printf("\n Socket creation error \n");
-        return -1;
-    }
-   
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(port);
-       
-    // Convert IPv4 and IPv6 addresses from text to binary form
-    if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0) 
-    {
-        printf("\nInvalid address/ Address not supported \n");
-        return -1;
-    }
-   
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        printf("\nConnection Failed \n");
-        return -1;
-    }
-    send(sock , hello , strlen(hello) , 0 );
-    printf("Hello message sent\n");
-    valread = read( sock , buffer, 1024);
-    printf("%s\n",buffer );
-    return 0;
+    return &result;
 }

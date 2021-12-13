@@ -5,6 +5,8 @@
 
 CLIENT = part_c_client
 SERVER = part_c_server
+LOGGER = part_c_logger
+WRAPPER = part_c_server_wrapper
 
 SOURCES_CLNT.c = 
 SOURCES_CLNT.h = 
@@ -26,7 +28,7 @@ RPCGENFLAGS =
 
 # Targets 
 
-all : $(CLIENT) $(SERVER)
+all : $(CLIENT) $(SERVER) $(LOGGER) $(WRAPPER)
 
 $(TARGETS) : $(SOURCES.x) 
 	rpcgen $(RPCGENFLAGS) $(SOURCES.x)
@@ -36,11 +38,24 @@ $(OBJECTS_CLNT) : $(SOURCES_CLNT.c) $(SOURCES_CLNT.h) $(TARGETS_CLNT.c)
 $(OBJECTS_SVC) : $(SOURCES_SVC.c) $(SOURCES_SVC.h) $(TARGETS_SVC.c) 
 
 $(CLIENT) : $(OBJECTS_CLNT) 
-	$(LINK.c) -o $(CLIENT) $(OBJECTS_CLNT) $(LDLIBS) 
+	$(LINK.c) -o $(CLIENT).out $(OBJECTS_CLNT) $(LDLIBS) 
 
 $(SERVER) : $(OBJECTS_SVC) 
-	$(LINK.c) -o $(SERVER) $(OBJECTS_SVC) $(LDLIBS)
+	$(LINK.c) -o part_c_server_wrapped.out $(OBJECTS_SVC) $(LDLIBS)
 
- clean:
-	 $(RM) core $(TARGETS) $(OBJECTS_CLNT) $(OBJECTS_SVC) $(CLIENT) $(SERVER)
+$(LOGGER) : $(LOGGER).o
+	gcc $(LOGGER).o -o $(LOGGER).out
 
+$(LOGGER).o : $(LOGGER).c
+	gcc -c $(LOGGER).c -o $(LOGGER).o
+
+$(WRAPPER) : $(WRAPPER).o
+	gcc $(WRAPPER).o -o $(SERVER).out
+
+$(WRAPPER).o : $(WRAPPER).c
+	gcc -c $(WRAPPER).c -o $(WRAPPER).o
+
+
+clean:
+	@rm -rf *.txt *.log *.o *.out
+	@echo "Object and output files are successfully removed."

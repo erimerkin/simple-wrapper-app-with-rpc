@@ -6,23 +6,16 @@
 #include <string.h>
 #include <ctype.h>
 
-/**
- * O_WRONLY: Open for writing only,
- * O_CREAT: If the file exists, this flag has no effect. Otherwise, the file is created,
- * O_APPEND: If set, the file offset will be set to the end of the file prior to each write.
-*/
-#define CREATE_FLAGS (O_WRONLY | O_CREAT | O_APPEND)
-
-#define CREATE_MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 
 int main(int argc, char **argv)
 {
 
-    int parent2child[2], child2parent[2], error2parent[2];
+    int message2child[2], message2parent[2], error2parent[2];
     pid_t pid;
     char write_buffer[10000], read_buffer[10000];
     char *executable_path, *output_path;
 
+    // Checks number of console args, if it is less than or more than 3 wrong input was given
     if (argc != 3)
     {
         printf("Insufficient arguments %d \n", argc);
@@ -34,9 +27,9 @@ int main(int argc, char **argv)
     output_path = argv[2];
 
     //Creating pipes
-    if ((pipe(parent2child) == -1) || (pipe(child2parent) == -1 || (pipe(error2parent) == -1)))
+    if ((pipe(message2child) == -1) || (pipe(message2parent) == -1 || (pipe(error2parent) == -1)))
     {
-        perror("There was an error creating pipes.");
+        perror("[ERROR] Couldn't create pipe.");
         return -1;
     }
 
@@ -44,7 +37,7 @@ int main(int argc, char **argv)
     pid = fork();
     if (pid == -1)
     {
-        perror("Failed fork process");
+        perror("[ERROR] Child process couldn't be created.");
         return -1;
     }
 
@@ -53,20 +46,22 @@ int main(int argc, char **argv)
     {
         int returnVal;
 
-        if (dup2(parent2child[0], STDIN_FILENO) == -1 || dup2(child2parent[1], STDOUT_FILENO) == -1 || dup2(error2parent[1], STDERR_FILENO) == -1)
+        // Redirects STDIN, STDERR, STDOUT to pipes
+        if (dup2(message2child[0], STDIN_FILENO) == -1 || dup2(message2parent[1], STDOUT_FILENO) == -1 || dup2(error2parent[1], STDERR_FILENO) == -1)
         {
-            fprintf(stderr, "There was an error binding pipes for std file descriptors.\n");
+            fprintf(stderr, "[ERROR] Couldn't bind pipes for std file descriptors.\n");
             return -1;
         }
 
         // Closing pipes since they are duplicated for standard file descriptors, we don't need them open
-        close(child2parent[0]);
-        close(child2parent[1]);
-        close(parent2child[0]);
-        close(parent2child[1]);
+        close(message2parent[0]);
+        close(message2parent[1]);
+        close(message2child[0]);
+        close(message2child[1]);
         close(error2parent[0]);
         close(error2parent[1]);
 
+        // Executing program from given path
         execl(executable_path, executable_path, NULL);
     }
     else
@@ -74,41 +69,39 @@ int main(int argc, char **argv)
     {
         int result_size, status;
 
-        close(parent2child[0]); // Parent won't read from parent to child pipe
-        close(child2parent[1]); // Parent won't write to child to parent pipe
-        close(error2parent[1]);
+        close(message2child[0]); // Parent won't read from parent to child pipe
+        close(message2parent[1]); // Parent won't write to message channel from child to parent
+        close(error2parent[1]); // Parent won't write to error channel from child to parent
 
         /* Taking 2 new arguements as input for child process */
         int a, b;
         scanf("%d %d", &a, &b);
         sprintf(write_buffer, "%d %d\n", a, b);
-        write(parent2child[1], write_buffer, strlen(write_buffer));
+        write(message2child[1], write_buffer, strlen(write_buffer));
 
         /* Creating file for output operation, and binding the file to standard output */
         FILE *output_file;
         output_file = fopen(output_path, "a");
-        // for (int i = 0; i < strlen(read_buffer); i++){
-        //     if (isdigit(read_buffer[i]) == 0 && isspace(read_buffer[i]) == 0){
-        //         printf("FAIL:\n%s", read_buffer);
-        //         return 0;
-        //     }
-        // }
 
         // Reading message sent from child process (Result of operation on child process)
-        result_size = read(child2parent[0], read_buffer, sizeof(read_buffer));
+        result_size = read(message2parent[0], read_buffer, sizeof(read_buffer));
 
+        // Checks if the program prints an output or error
         if (result_size == 0)
         {
+            // The binary programs outputs error message, print error message to file
             read(error2parent[0], read_buffer, sizeof(read_buffer));
             fprintf(output_file, "FAIL:\n%s", read_buffer);
         }
         else
         {
+            // Operation was successfull, print result to file
             fprintf(output_file, "SUCCESS:\n%s", read_buffer);
         }
         
-        close(parent2child[1]);
-        close(child2parent[0]);
+        // Close all pipes
+        close(message2child[1]);
+        close(message2parent[0]);
         close(error2parent[0]);   
     }
 

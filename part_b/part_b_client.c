@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 
 	if (argc != 4)
 	{
-		printf("usage: %s executable_path output_path server_host\n", argv[0]);
+		printf("usage: %s executable_path output_path server_ip_address\n", argv[0]);
 		exit(1);
 	}
 

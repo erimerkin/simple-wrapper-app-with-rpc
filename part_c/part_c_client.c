@@ -6,42 +6,67 @@
 
 #include "part_c.h"
 
-
-void
-part_c_1(char *host)
+void part_c_1(char *host, char *runnable_path, char *output_path)
 {
 	CLIENT *clnt;
-	char * *result_1;
-	arguments  run_binary_1_arg;
+	char **result_1;
+	arguments run_binary_1_arg;
 
-#ifndef	DEBUG
-	clnt = clnt_create (host, PART_C, PART_C_VERS, "udp");
-	if (clnt == NULL) {
-		clnt_pcreateerror (host);
-		exit (1);
+#ifndef DEBUG
+	clnt = clnt_create(host, PART_C, PART_C_VERS, "udp");
+	if (clnt == NULL)
+	{
+		clnt_pcreateerror(host);
+		exit(1);
 	}
-#endif	/* DEBUG */
+#endif /* DEBUG */
+
+	// Scanning input from STDIN (user input)
+	int x, y;
+	scanf("%d %d", &x, &y);
+
+	// Read inputs are stored in struct
+	run_binary_1_arg.a = x;
+	run_binary_1_arg.b = y;
+	run_binary_1_arg.executable_path = runnable_path;
 
 	result_1 = run_binary_1(&run_binary_1_arg, clnt);
-	if (result_1 == (char **) NULL) {
-		clnt_perror (clnt, "call failed");
+	if (result_1 == (char **)NULL)
+	{
+		clnt_perror(clnt, "call failed");
 	}
-#ifndef	DEBUG
-	clnt_destroy (clnt);
-#endif	 /* DEBUG */
+	else
+	{
+		/* Creating file for output operation, and binding the file to standard output */
+		FILE *output_file;
+		output_file = fopen(output_path, "a");
+
+		fprintf(output_file, "%s", *result_1);
+
+		fclose(output_file);
+	}
+
+#ifndef DEBUG
+	clnt_destroy(clnt);
+#endif /* DEBUG */
 }
 
-
-int
-main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	char *host;
+	char *executable_path;
+	char *output_path;
 
-	if (argc < 2) {
-		printf ("usage: %s server_host\n", argv[0]);
-		exit (1);
+	if (argc != 4)
+	{
+		printf("usage: %s executable_path output_path server_ip_address\n", argv[0]);
+		exit(1);
 	}
-	host = argv[1];
-	part_c_1 (host);
-exit (0);
+
+	executable_path = argv[1];
+	output_path = argv[2];
+	host = argv[3];
+
+	part_c_1(host, executable_path, output_path);
+	exit(0);
 }
