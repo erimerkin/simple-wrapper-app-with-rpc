@@ -3,3 +3,5 @@ blackbox.*
 blackbox
 *.o
 *.out
+*.log
+TEST_C
