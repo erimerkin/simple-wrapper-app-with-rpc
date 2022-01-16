@@ -11,7 +11,7 @@
  * 
  *  How to run:
  *  > make
- *  > ./part_c_logger.out   output_path.log     port
+ *  > ./part_c_logger.out   output_path.log     port_number
  */
 
 #include <stdio.h>

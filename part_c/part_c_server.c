@@ -19,11 +19,11 @@
  *   ./part_c_server.out command, this file is compiled as part_c_server_wrapped.out.
  *
  *   This code is referenced from PS6's rpc tutorials and io_capture.c and simpleredirect.c
- *   Socket codes are referenced from https://www.binarytides.com/socket-programming-c-linux-tutorial/
+ *   Socket client codes are referenced from https://www.binarytides.com/socket-programming-c-linux-tutorial/
  *
  *   How to run:
  *   > make
- *   > ./part_c_server.out   logger_ip_address   logger_port
+ *   > ./part_c_server.out   logger_ip_address   logger_port_number
  * 
  */
 
@@ -34,8 +34,8 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 
-int server_socket, run;
-struct sockaddr_in server_address;
+static int server_socket, run;
+static struct sockaddr_in server_address;
 
 char **
 run_binary_1_svc(arguments *argp, struct svc_req *rqstp)
@@ -110,7 +110,7 @@ run_binary_1_svc(arguments *argp, struct svc_req *rqstp)
                 strcpy(server_ip, "127.0.0.1");
             }
 
-            // Setting up socket ip and ports
+            // Setting up ipv4 address for connection
             if (inet_pton(AF_INET, server_ip, &(server_address.sin_addr)) <= 0)
             {
                 perror("[ERROR] Given ip address couldn't be converted from string.");
@@ -122,6 +122,7 @@ run_binary_1_svc(arguments *argp, struct svc_req *rqstp)
             run = 1; //Setting run=1 to block the initialization in other calls
         }
 
+        // initializing socket
         server_socket = socket(AF_INET, SOCK_STREAM, 0);
         //Creates socket
         if (server_socket == -1)
@@ -196,8 +197,9 @@ run_binary_1_svc(arguments *argp, struct svc_req *rqstp)
         else
         {
             // Checking if the returned error message ends with \n, then removing it since we add \n in fprintf()
-            if (full_message[strlen(full_message) - 1] == '\n')
+            if (full_message[strlen(full_message) - 1] == '\n'){
                 full_message[strlen(full_message) - 1] = '\0';
+            }
 
             // Creating a temp string with enough space for full message and FAIL title. log message is also created
             char temp_string[strlen(full_message) + 7];

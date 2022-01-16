@@ -5,3 +5,5 @@ blackbox
 *.out
 *.log
 TEST_C
+.*
+*.zip
